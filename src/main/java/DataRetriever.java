@@ -159,17 +159,17 @@ public class DataRetriever {
             conn.setAutoCommit(false);
 
             if (dishToSave.getId() == 0) {
-                String sqlInsert = "INSERT INTO Dish (name, dish_type) VALUES (?, ?::dish_type)";
+                String sqlInsert = "INSERT INTO Dish (name, dish_type) VALUES (?, ?::dish_type) " +
+                        "ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name " +
+                        "RETURNING id";
 
-                try (PreparedStatement pstmt = conn.prepareStatement(sqlInsert, java.sql.Statement.RETURN_GENERATED_KEYS)) {
+                try (PreparedStatement pstmt = conn.prepareStatement(sqlInsert)) {
                     pstmt.setString(1, dishToSave.getName());
                     pstmt.setString(2, dishToSave.getDishType().name());
 
-                    pstmt.executeUpdate();
-
-                    try (ResultSet rs = pstmt.getGeneratedKeys()) {
+                    try (ResultSet rs = pstmt.executeQuery()) {
                         if (rs.next()) {
-                            dishToSave.setId(rs.getInt(1));
+                            dishToSave.setId(rs.getInt("id"));
                         }
                     }
                 }
@@ -183,7 +183,7 @@ public class DataRetriever {
                 }
             }
 
-            if (dishToSave.getIngredient() != null && !dishToSave.getIngredient().isEmpty()) {
+            if (dishToSave.getIngredient() != null) {
                 saveAssociatedIngredients(conn, dishToSave);
             }
 
@@ -191,18 +191,10 @@ public class DataRetriever {
             System.out.println("Plat '" + dishToSave.getName() + "' sauvegardé avec succès.");
 
         } catch (SQLException e) {
-            if (conn != null) {
-                try {
-                    conn.rollback();
-                } catch (SQLException exception) {
-                    throw new RuntimeException(exception);
-                }
-            }
-            throw new RuntimeException("Erreur lors de la sauvegarde du plat", e);
+            if (conn != null) conn.rollback();
+            throw new RuntimeException("Erreur lors de la sauvegarde du plat : " + e.getMessage(), e);
         } finally {
-            if (conn != null) {
-                conn.close();
-            }
+            if (conn != null) conn.close();
         }
         return dishToSave;
     }
