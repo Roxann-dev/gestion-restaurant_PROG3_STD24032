@@ -37,10 +37,12 @@ public class Dish {
     }
 
     public Double getGrossMargin() {
-        if (price == null) {
-            throw new RuntimeException("Price is null");
+        if (this.price == null) {
+            throw new RuntimeException("Calcul de marge impossible : le plat '" +
+                    this.name + "' n'a pas de prix de vente défini.");
         }
-        return price - getDishCost();
+
+        return this.price - getDishCost();
     }
 
     public Integer getId() {
