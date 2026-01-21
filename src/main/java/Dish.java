@@ -3,47 +3,19 @@ import java.util.Objects;
 
 public class Dish {
     private Integer id;
-    private Double price;
     private String name;
     private DishTypeEnum dishType;
-    private List<Ingredient> ingredients;
+    private List<DishIngredient> ingredients;
+    private Double price;
 
-    public Dish() {
-    }
-
-    public Dish(Integer id, String name, DishTypeEnum dishType, List<Ingredient> ingredients) {
+    public Dish(Integer id, String name, DishTypeEnum dishType, Double price) {
         this.id = id;
         this.name = name;
         this.dishType = dishType;
-        this.setIngredients(ingredients);
+        this.price = price;
     }
 
-    public Double getDishCost() {
-        if (this.ingredients == null || this.ingredients.isEmpty()) {
-            return 0.0;
-        }
-
-        double totalCost = 0.0;
-
-        for (Ingredient ing : ingredients) {
-            Double pricePerUnit = ing.getPrice();
-            Double quantityRequired = ing.getQuantity();
-
-            if (pricePerUnit != null && quantityRequired != null) {
-                totalCost += pricePerUnit * quantityRequired;
-            }
-        }
-        return totalCost;
-    }
-
-    public Double getGrossMargin() {
-        if (this.price == null) {
-            throw new RuntimeException("Calcul de marge impossible : le plat '" +
-                    this.name + "' n'a pas de prix de vente défini.");
-        }
-
-        return this.price - getDishCost();
-    }
+    public Dish() {}
 
     public Integer getId() {
         return id;
@@ -51,14 +23,6 @@ public class Dish {
 
     public void setId(Integer id) {
         this.id = id;
-    }
-
-    public Double getPrice() {
-        return price;
-    }
-
-    public void setPrice(Double price) {
-        this.price = price;
     }
 
     public String getName() {
@@ -77,20 +41,20 @@ public class Dish {
         this.dishType = dishType;
     }
 
-    public List<Ingredient> getIngredients() {
+    public List<DishIngredient> getIngredients() {
         return ingredients;
     }
 
-    public void setIngredients(List<Ingredient> ingredients) {
-        if (ingredients == null) {
-            this.ingredients = null;
-            return;
-        }
-        // Logique du prof : on lie chaque ingrédient à ce plat (this)
-        for (Ingredient ing : ingredients) {
-            ing.setDish(this);
-        }
+    public void setIngredients(List<DishIngredient> ingredients) {
         this.ingredients = ingredients;
+    }
+
+    public Double getPrice() {
+        return price;
+    }
+
+    public void setPrice(Double price) {
+        this.price = price;
     }
 
     @Override
@@ -116,5 +80,22 @@ public class Dish {
                 ", dishType=" + dishType +
                 ", ingredients=" + ingredients +
                 '}';
+    }
+
+    public Double getDishCost() {
+        double total = 0.0;
+        for (DishIngredient di : ingredients) {
+            total += di.getIngredient().getPrice() * di.getQuantity();
+        }
+        return total;
+    }
+
+
+    public Double getGrossMargin() {
+        if (this.price == null) {
+            throw new RuntimeException("Calcul de marge impossible : le plat '" +
+                    this.name + "' n'a pas de prix de vente défini.");
+        }
+        return this.price - getDishCost();
     }
 }
