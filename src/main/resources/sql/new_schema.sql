@@ -27,3 +27,19 @@ CREATE TABLE stock_movement (
     CONSTRAINT fk_ingredient FOREIGN KEY (id_ingredient) REFERENCES ingredient(id)
 );
 
+--------------------------------------------------------------------------------------------------------------------
+// TD4 : annexe
+CREATE TABLE "Order" (
+    id SERIAL PRIMARY KEY NOT NULL,
+    reference VARCHAR(8) NOT NULL,
+    creation_datetime TIMESTAMP NOT NULL
+);
+
+CREATE TABLE dish_order (
+    id SERIAL PRIMARY KEY NOT NULL,
+    id_order INT NOT NULL,
+    id_dish INT NOT NULL,
+    quantity NUMERIC NOT NULL,
+    CONSTRAINT fk_order FOREIGN KEY (id_order) REFERENCES "Order"(id),
+    CONSTRAINT fk_dish FOREIGN KEY (id_dish) REFERENCES dish(id)
+);
