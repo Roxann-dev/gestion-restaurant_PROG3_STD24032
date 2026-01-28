@@ -29,3 +29,12 @@ INSERT INTO stock_movement (id, id_ingredient, quantity, type, unit, creation_da
 
 -- Synchronisation de la séquence après insertion manuelle des IDs
 SELECT setval('stock_movement_id_seq', (SELECT MAX(id) FROM stock_movement));
+
+-----------------------------------------------------------------------
+/* conversion unité - BONUS */
+INSERT INTO stock_movement (id, id_ingredient, quantity, type, unit, creation_datetime, commentaire) VALUES
+    (2, 1, 2, 'OUT', 'PCS', '2024-01-06 12:00', 'Préparation salade'),
+    (4, 2, 5, 'OUT', 'PCS', '2024-01-06 12:00', 'Préparation salade'),
+    (6, 3, 4, 'OUT', 'PCS', '2024-01-06 13:00', 'Plat principal'),
+    (8, 4, 1, 'OUT', 'L', '2024-01-06 14:00', 'Dessert'),
+    (10, 5, 1, 'OUT', 'L', '2024-01-06 14:00', 'Pâtisserie');

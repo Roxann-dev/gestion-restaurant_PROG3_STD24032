@@ -8,7 +8,6 @@ public class DataRetriever {
 
     private final DBConnection dbConnection = new DBConnection();
 
-    // 1. Récupérer un plat par son ID
     public Dish findDishById(Integer id) {
         Connection connection = dbConnection.getConnection();
         try {
@@ -36,7 +35,6 @@ public class DataRetriever {
     }
 
 
-    // 2. Pagination des ingrédients
     public List<Ingredient> findIngredients(int page, int size) {
         List<Ingredient> ingredients = new ArrayList<>();
         String sql = "SELECT * FROM ingredient ORDER BY name LIMIT ? OFFSET ?";
@@ -56,7 +54,6 @@ public class DataRetriever {
         return ingredients;
     }
 
-    // 3. Créer des ingrédients
     public List<Ingredient> createIngredients(List<Ingredient> newIngredients) {
         if (newIngredients == null || newIngredients.isEmpty()) return List.of();
 
@@ -101,14 +98,13 @@ public class DataRetriever {
                 throw new RuntimeException("Erreur SQL lors de l'insertion groupée : " + e.getMessage());
             }
         } catch (SQLException e) {
-            throw new RuntimeException("Erreur de connexion : " + e.getMessage());
+            throw new RuntimeException(e);
         } finally {
             dbConnection.closeConnection(conn);
         }
     }
 
 
-    // 4. Sauvegarder/Mettre à jour un plat
     public Dish saveDish(Dish dish) {
         String upsertDishSql = """
         INSERT INTO dish (id, name, dish_type, price)
@@ -162,7 +158,6 @@ public class DataRetriever {
     }
 
 
-    // 5. Trouver les plats contenant un ingrédient spécifique
     public List<Dish> findDishsByIngredientName(String search) {
         List<Dish> dishes = new ArrayList<>();
         String sql = """
@@ -190,7 +185,6 @@ public class DataRetriever {
         return dishes;
     }
 
-    // 6. Recherche multicritères
     public List<Ingredient> findIngredientsByCriteria(String name, CategoryEnum cat, String dishName, int page, int size) {
         List<Ingredient> ingredients = new ArrayList<>();
         // Remplace la ligne 126 par :
@@ -282,8 +276,6 @@ public class DataRetriever {
         }
     }
 
-
-
     private int getNextSerialValue(Connection conn, String tableName, String columnName) throws SQLException {
         String sequenceName;
         try (PreparedStatement ps = conn.prepareStatement("SELECT pg_get_serial_sequence(?, ?)")) {
@@ -352,7 +344,9 @@ public class DataRetriever {
             conn.commit();
             return toSave;
         } catch (SQLException e) {
-            try { if (conn != null) conn.rollback(); } catch (SQLException ex) {}
+            try {
+                if (conn != null) conn.rollback();
+            } catch (SQLException ex) {}
             throw new RuntimeException("Erreur lors de la sauvegarde de l'ingrédient : " + e.getMessage());
         } finally {
             dbConnection.closeConnection(conn);
@@ -367,7 +361,7 @@ public class DataRetriever {
         INSERT INTO stock_movement (id, id_ingredient, quantity, type, unit, creation_datetime)
         VALUES (?, ?, ?, ?::movement_type, ?::unit_type, ?)
         ON CONFLICT (id) DO NOTHING
-    """;
+        """;
 
         try (PreparedStatement psM = conn.prepareStatement(sqlMovement)) {
             for (StockMovement sm : movements) {
@@ -383,7 +377,6 @@ public class DataRetriever {
         }
     }
 
-    /// ///////////////////////////////////////////////////////////////////////////////////////////////////////////
     // pour mes tests :
     public Ingredient findIngredientById(int id) {
         Ingredient ingredient = null;
@@ -429,7 +422,6 @@ public class DataRetriever {
         return list;
     }
 
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // TD - annexe 22 janvier
     public Order saveOrder(Order orderToSave) {
         Connection conn = dbConnection.getConnection();
@@ -437,20 +429,19 @@ public class DataRetriever {
             conn.setAutoCommit(false);
             Instant now = Instant.now();
 
-        // 1. On vérifie si on a assez de stock
             checkStockAvailability(orderToSave, now);
 
-        // 2. On insère l'entête de la commande
             Integer orderId = insertOrderHeader(conn, orderToSave, now);
 
-        // 3. On insère les plats commandés
             insertOrderItems(conn, orderId, orderToSave.getDishOrders());
 
             conn.commit();
             orderToSave.setId(orderId);
             return orderToSave;
         } catch (SQLException e) {
-            try { if (conn != null) conn.rollback(); } catch (SQLException ex) {}
+            try {
+                if (conn != null) conn.rollback();
+            } catch (SQLException ex) {}
             throw new RuntimeException("Échec de la commande : " + e.getMessage());
         } finally {
             dbConnection.closeConnection(conn);
@@ -458,14 +449,22 @@ public class DataRetriever {
     }
 
     private void checkStockAvailability(Order order, Instant t) {
-        for (DishOrder item : order.getDishOrders()) {
-            Dish dish = findDishById(item.getDish().getId());
+        for (DishOrder dO : order.getDishOrders()) {
+            Dish dish = findDishById(dO.getDish().getId());
+
             for (DishIngredient di : dish.getIngredients()) {
                 Ingredient ing = findIngredientById(di.getIngredient().getId());
-                double currentStock = ing.getStockValueAt(t).getQuantity();
-                double required = di.getQuantity() * item.getQuantity();
+                double currentStockKg = ing.getStockValueAt(t).getQuantity();
 
-                if (currentStock < required) {
+                double requiredPerDishKg = UnitConverter.convertToKg(
+                        ing.getName(),
+                        di.getQuantity(),
+                        di.getUnit()
+                );
+
+                double totalRequiredKg = requiredPerDishKg * dO.getQuantity();
+
+                if (currentStockKg < totalRequiredKg) {
                     throw new RuntimeException("Stock insuffisant pour : " + ing.getName());
                 }
             }
@@ -498,59 +497,62 @@ public class DataRetriever {
 
     public Order findOrderByReference(String reference) {
         String sql = "SELECT id, reference, creation_datetime FROM \"Order\" WHERE reference = ?";
-        Connection conn = dbConnection.getConnection();
-
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, reference);
-            ResultSet rs = ps.executeQuery();
-
-            if (rs.next()) {
-                Order order = new Order();
-                order.setId(rs.getInt("id"));
-                order.setReference(rs.getString("reference"));
-                order.setCreationDatetime(rs.getTimestamp("creation_datetime").toInstant());
-                order.setDishOrders(findDishOrdersByReference(reference));
-
-                return order;
-            } else {
-                throw new RuntimeException("Commande introuvable pour la référence : " + reference);
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException(e.getMessage());
-        } finally {
-            dbConnection.closeConnection(conn);
-        }
-    }
-
-    public List<DishOrder> findDishOrdersByReference(String reference) {
-        List<DishOrder> list = new ArrayList<>();
-        String sql = """
-        SELECT do.id, do.quantity, d.id as dish_id, d.name, d.price, d.dish_type 
-        FROM dish_order do 
-        JOIN "Order" o ON o.id = do.id_order 
-        JOIN dish d ON d.id = do.id_dish 
-        WHERE o.reference = ?
-    """;
 
         try (Connection conn = dbConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setString(1, reference);
-            ResultSet rs = ps.executeQuery();
 
-            while (rs.next()) {
-                Dish dish = new Dish();
-                dish.setId(rs.getInt("dish_id"));
-                dish.setName(rs.getString("name"));
-                dish.setPrice(rs.getDouble("price"));
-                dish.setDishType(DishTypeEnum.valueOf(rs.getString("dish_type")));
+            try (ResultSet rs = ps.executeQuery()) {
 
-                DishOrder dishOrder = new DishOrder();
-                dishOrder.setId(rs.getInt("id"));
-                dishOrder.setQuantity(rs.getInt("quantity"));
-                dishOrder.setDish(dish);
+                if (rs.next()) {
+                    Order order = new Order();
+                    order.setId(rs.getInt("id"));
+                    order.setReference(rs.getString("reference"));
+                    order.setCreationDatetime(rs.getTimestamp("creation_datetime").toInstant());
+                    order.setDishOrders(findDishOrdersByReference(reference));
 
-                list.add(dishOrder);
+                    return order;
+                } else {
+                    throw new RuntimeException("Commande introuvable pour la référence : " + reference);
+                }
+            }
+
+        } catch (SQLException e) {
+            throw new RuntimeException("Erreur récupération commande : " + e.getMessage());
+        }
+    }
+
+
+    public List<DishOrder> findDishOrdersByReference(String reference) {
+        List<DishOrder> list = new ArrayList<>();
+        String sql = """
+        SELECT dor.id, dor.quantity, d.id as dish_id, d.name, d.price, d.dish_type 
+        FROM dish_order dor 
+        JOIN "Order" o ON o.id = dor.id_order 
+        JOIN dish d ON d.id = dor.id_dish 
+        WHERE o.reference = ?
+        """;
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, reference);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Dish dish = new Dish();
+                    dish.setId(rs.getInt("dish_id"));
+                    dish.setName(rs.getString("name"));
+                    dish.setPrice(rs.getDouble("price"));
+                    dish.setDishType(DishTypeEnum.valueOf(rs.getString("dish_type")));
+
+                    DishOrder dishOrder = new DishOrder();
+                    dishOrder.setId(rs.getInt("id"));
+                    dishOrder.setQuantity(rs.getInt("quantity"));
+                    dishOrder.setDish(dish);
+
+                    list.add(dishOrder);
+                }
             }
         } catch (SQLException e) {
             throw new RuntimeException("Erreur lors de la récupération des plats de la commande : " + e.getMessage());

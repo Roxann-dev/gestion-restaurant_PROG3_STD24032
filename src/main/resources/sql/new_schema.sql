@@ -43,3 +43,8 @@ CREATE TABLE dish_order (
     CONSTRAINT fk_order FOREIGN KEY (id_order) REFERENCES "Order"(id),
     CONSTRAINT fk_dish FOREIGN KEY (id_dish) REFERENCES dish(id)
 );
+
+-----------------------------------------------------------------------
+/* (conversion unité) */
+ALTER TABLE stock_movement
+ADD column commentaire varchar(150);

@@ -83,25 +83,27 @@ public class Ingredient {
 
     // TD4 : gestion de stock
     public StockValue getStockValueAt(Instant t) {
-        double totalQuantity = 0.0;
+        double totalQuantityInKg = 0.0;
 
-        if (this.stockMovementList == null || this.stockMovementList.isEmpty()) {
-            return new StockValue(0.0, UnitType.KG);
-        }
+        if (this.stockMovementList == null) return new StockValue(0.0, UnitType.KG);
 
         for (StockMovement sm : this.stockMovementList) {
-            if (sm.getCreationDatetime().isBefore(t)) {
-                // sm.getValue() retourne l'objet StockValue du mouvement
-                double qty = sm.getValue().getQuantity();
+            if (!sm.getCreationDatetime().isAfter(t)) {
+
+                // conversion en kg
+                double convertedQty = UnitConverter.convertToKg(
+                        this.name,
+                        sm.getValue().getQuantity(),
+                        sm.getValue().getUnit()
+                );
 
                 if (sm.getType() == MovementType.IN) {
-                    totalQuantity += qty;
-                } else if (sm.getType() == MovementType.OUT) {
-                    totalQuantity -= qty;
+                    totalQuantityInKg += convertedQty;
+                } else {
+                    totalQuantityInKg -= convertedQty;
                 }
             }
         }
-        // On retourne le résultat sous forme d'objet StockValue
-        return new StockValue(totalQuantity, UnitType.KG);
+        return new StockValue(totalQuantityInKg, UnitType.KG);
     }
 }

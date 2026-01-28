@@ -51,11 +51,11 @@ public class Order {
     public Double getTotalAmountWithoutVAT() {
         if (dishOrders == null) return 0.0;
         return dishOrders.stream()
-                .mapToDouble(doItem -> doItem.getDish().getPrice() * doItem.getQuantity())
+                .mapToDouble(dO -> dO.getDish().getPrice() * dO.getQuantity())
                 .sum();
     }
 
-    // Calcul du montant total TTC (exemple avec TVA à 20%) [cite: 34]
+    // Calcul du montant total TTC (exemple avec TVA à 20%)
     public Double getTotalAmountWithVAT() {
         return getTotalAmountWithoutVAT() * 1.20;
     }

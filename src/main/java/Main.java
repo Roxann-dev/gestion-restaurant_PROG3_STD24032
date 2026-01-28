@@ -1,12 +1,16 @@
+import javax.xml.crypto.Data;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
 public class Main {
+
     public static void main(String[] args) {
         DataRetriever retriever = new DataRetriever();
 
-        // tests TD3 des méthodes getDishCost() et getGrossMargin()
         for (int i = 1; i <= 5; i++) {
             try {
                 Dish plat = retriever.findDishById(i);
@@ -30,7 +34,7 @@ public class Main {
 
         System.out.println();
 
-        // TD4 : tests gestion de stock
+        // tests gestion de stock avec conversion unité
         DataRetriever dataRetriever = new DataRetriever();
         Ingredient laitue = dataRetriever.findIngredientById(1);
         Ingredient tomate = dataRetriever.findIngredientById(2);
@@ -45,7 +49,6 @@ public class Main {
         StockValue stock3 = poulet.getStockValueAt(t);
         StockValue stock4 = chocolat.getStockValueAt(t);
         StockValue stock5 = beurre.getStockValueAt(t);
-
 
         System.out.println("--- ETATS DES STOCKS ---");
         System.out.println(laitue.getName() + " : " + stock.getQuantity() + stock.getUnit());
