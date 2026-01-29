@@ -423,26 +423,56 @@ public class DataRetriever {
     }
 
     // TD - annexe 22 janvier
-    public Order saveOrder(Order orderToSave) {
+    public Order saveOrder(Order orderToSave, Integer tableId) {
         Connection conn = dbConnection.getConnection();
         try {
             conn.setAutoCommit(false);
-            Instant now = Instant.now();
+            Instant now = orderToSave.getCreationDatetime() != null ? orderToSave.getCreationDatetime() : Instant.now();
 
             checkStockAvailability(orderToSave, now);
 
-            Integer orderId = insertOrderHeader(conn, orderToSave, now);
+            List<Order> tableOrders = findOrdersByTableId(tableId);
+            RestaurantTable requestedTable = new RestaurantTable();
+            requestedTable.setId(tableId);
+            requestedTable.setOrders(tableOrders);
+
+            if (!requestedTable.isAvailableAt(now)) {
+                List<RestaurantTable> availableTables = findAvailableTables(now);
+
+                String availableNumbers = availableTables.stream()
+                        .map(t -> String.valueOf(t.getNumber()))
+                        .collect(Collectors.joining(", "));
+
+                String errorMsg = "La table " + tableId + " est déjà occupée ! ";
+                if (!availableNumbers.isEmpty()) {
+                    errorMsg += "Les tables suivantes sont encore disponibles : " + availableNumbers;
+                } else {
+                    errorMsg += "Désolé, aucune autre table n'est disponible pour le moment.";
+                }
+
+                throw new RuntimeException(errorMsg);
+            }
+
+            String sql = "INSERT INTO \"Order\" (reference, creation_datetime, id_table) VALUES (?, ?, ?) RETURNING id";
+            Integer orderId;
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, orderToSave.getReference());
+                ps.setTimestamp(2, Timestamp.from(now));
+                ps.setInt(3, tableId);
+                ResultSet rs = ps.executeQuery();
+                rs.next();
+                orderId = rs.getInt(1);
+            }
 
             insertOrderItems(conn, orderId, orderToSave.getDishOrders());
 
             conn.commit();
             orderToSave.setId(orderId);
             return orderToSave;
+
         } catch (SQLException e) {
-            try {
-                if (conn != null) conn.rollback();
-            } catch (SQLException ex) {}
-            throw new RuntimeException("Échec de la commande : " + e.getMessage());
+            try { conn.rollback(); } catch (SQLException ex) {}
+            throw new RuntimeException("Erreur SQL : " + e.getMessage());
         } finally {
             dbConnection.closeConnection(conn);
         }
@@ -496,7 +526,7 @@ public class DataRetriever {
     }
 
     public Order findOrderByReference(String reference) {
-        String sql = "SELECT id, reference, creation_datetime FROM \"Order\" WHERE reference = ?";
+        String sql = "SELECT id, reference, creation_datetime, id_table FROM \"Order\" WHERE reference = ?";
 
         try (Connection conn = dbConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -504,7 +534,6 @@ public class DataRetriever {
             ps.setString(1, reference);
 
             try (ResultSet rs = ps.executeQuery()) {
-
                 if (rs.next()) {
                     Order order = new Order();
                     order.setId(rs.getInt("id"));
@@ -512,12 +541,19 @@ public class DataRetriever {
                     order.setCreationDatetime(rs.getTimestamp("creation_datetime").toInstant());
                     order.setDishOrders(findDishOrdersByReference(reference));
 
+                    int tableId = rs.getInt("id_table");
+                    if (tableId != 0) {
+                        RestaurantTable table = new RestaurantTable();
+                        table.setId(tableId);
+
+                        order.setRestaurantTable(table);
+                    }
+
                     return order;
                 } else {
                     throw new RuntimeException("Commande introuvable pour la référence : " + reference);
                 }
             }
-
         } catch (SQLException e) {
             throw new RuntimeException("Erreur récupération commande : " + e.getMessage());
         }
@@ -558,5 +594,58 @@ public class DataRetriever {
             throw new RuntimeException("Erreur lors de la récupération des plats de la commande : " + e.getMessage());
         }
         return list;
+    }
+
+    // Examen 29 janvier :
+    public List<RestaurantTable> findAvailableTables(Instant t) {
+        List<RestaurantTable> allTables = findAllTables(); // Méthode à créer
+        List<RestaurantTable> availableTables = new ArrayList<>();
+
+        for (RestaurantTable table : allTables) {
+            table.setOrders(findOrdersByTableId(table.getId()));
+
+            if (table.isAvailableAt(t)) {
+                availableTables.add(table);
+            }
+        }
+        return availableTables;
+    }
+
+    private List<RestaurantTable> findAllTables() {
+        List<RestaurantTable> tables = new ArrayList<>();
+        String sql = "SELECT * FROM restaurant_table";
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                RestaurantTable rt = new RestaurantTable();
+                rt.setId(rs.getInt("id"));
+                rt.setNumber(rs.getInt("number"));
+                tables.add(rt);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return tables;
+    }
+
+    private List<Order> findOrdersByTableId(Integer tableId) {
+        List<Order> orders = new ArrayList<>();
+        String sql = "SELECT id, reference, creation_datetime FROM \"Order\" WHERE id_table = ?";
+        try (Connection conn = dbConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, tableId);
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) {
+                Order o = new Order();
+                o.setId(rs.getInt("id"));
+                o.setReference(rs.getString("reference"));
+                o.setCreationDatetime(rs.getTimestamp("creation_datetime").toInstant());
+                orders.add(o);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return orders;
     }
 }

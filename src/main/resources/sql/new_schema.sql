@@ -48,3 +48,12 @@ CREATE TABLE dish_order (
 /* (conversion unité) */
 ALTER TABLE stock_movement
 ADD column commentaire varchar(150);
+
+CREATE TABLE restaurant_table (
+                                  id INT PRIMARY KEY NOT NULL,
+                                  number int NOT NULL UNIQUE
+);
+
+ALTER TABLE "Order" ADD COLUMN id_table INTEGER REFERENCES restaurant_table(id);
+
+INSERT INTO restaurant_table (id, number) VALUES (1, 1), (2, 2), (3, 3), (4, 4), (5,5);

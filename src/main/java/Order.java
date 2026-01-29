@@ -6,12 +6,21 @@ public class Order {
     private String reference;
     private Instant creationDatetime;
     private List<DishOrder> dishOrders;
+    private RestaurantTable restaurantTable;
 
     public Order(Integer id, String reference, Instant creationDatetime, List<DishOrder> dishOrders) {
         this.id = id;
         this.reference = reference;
         this.creationDatetime = creationDatetime;
         this.dishOrders = dishOrders;
+    }
+
+    public RestaurantTable getRestaurantTable() {
+        return restaurantTable;
+    }
+
+    public void setRestaurantTable(RestaurantTable restaurantTable) {
+        this.restaurantTable = restaurantTable;
     }
 
     public Order() {}
@@ -55,7 +64,7 @@ public class Order {
                 .sum();
     }
 
-    // Calcul du montant total TTC (exemple avec TVA à 20%)
+    // TVA à 20%
     public Double getTotalAmountWithVAT() {
         return getTotalAmountWithoutVAT() * 1.20;
     }
